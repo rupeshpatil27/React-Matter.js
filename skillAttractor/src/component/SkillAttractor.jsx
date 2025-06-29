@@ -36,72 +36,32 @@ function SkillAttractor({ elementRefs, children }) {
 
     const randomPosition = (margin, max) => Matter.Common.random(margin, max - margin);
 
-    function createCircle(ele, width, height) {
-        const radius = Math.max(ele.width, ele.height) / 2;
-        const margin = radius + 20;
+    const createRectangle = (el, width, height) => {
+        var rectangleWidth = el.width;
+        var rectangleHeight = el.height;
+
+        const margin = el.width + 30; // safe margin from edges
 
         const x = randomPosition(margin, width);
         const y = randomPosition(margin, height);
-
-        const body = Matter.Bodies.circle(
-            x,
-            y,
-            radius,
-            { ...BODY_OPTIONS, name: "image" }
-        );
-
-        Matter.Body.setVelocity(body, {
-            x: Matter.Common.random(-1, 1),
-            y: Matter.Common.random(-1, 1),
-        });
-
-        return body
-    }
-
-    const createPill = (el, width, height) => {
-        var pillWidth = el.width;
-        var pillHeight = el.height;
-        var pillRadius = pillHeight / 2;
-
-        const margin = pillWidth + 30; // safe margin from edges
-
-        const x = randomPosition(margin, width);
-        const y = randomPosition(margin, height);
-
-        var leftCircle = Matter.Bodies.circle(
-            x - pillWidth / 2 + pillRadius,
-            y,
-            pillRadius,
-            BODY_OPTIONS
-        );
-
-        var rightCircle = Matter.Bodies.circle(
-            x + pillWidth / 2 - pillRadius,
-            y,
-            pillRadius,
-            BODY_OPTIONS
-        );
 
         var rect = Matter.Bodies.rectangle(
             x,
             y,
-            pillWidth - pillHeight,
-            pillHeight,
-            BODY_OPTIONS
+            rectangleWidth,
+            rectangleHeight,
+            {
+                ...BODY_OPTIONS,
+                name: "box"
+            }
         );
 
-        const pill = Matter.Body.create({
-            parts: [leftCircle, rightCircle, rect],
-            ...BODY_OPTIONS,
-            name: "text",
-        });
-
-        Matter.Body.setVelocity(pill, {
+        Matter.Body.setVelocity(rect, {
             x: Matter.Common.random(-1, 1),
             y: Matter.Common.random(-1, 1),
         });
 
-        return pill;
+        return rect;
     };
 
     const createAttractiveBody = (width, height) => {
@@ -242,8 +202,7 @@ function SkillAttractor({ elementRefs, children }) {
                     width: offsetWidth,
                     height: offsetHeight,
                     left: offsetLeft,
-                    top: offsetTop,
-                    objectType: element.nodeName === "IMG" ? "image" : "text",
+                    top: offsetTop,                    
                 };
             })
             .filter(Boolean);
@@ -277,16 +236,7 @@ function SkillAttractor({ elementRefs, children }) {
         const createBodies = () => {
             const { width, height } = getCanvasSize();
             return measuredSizes.map((el) => {
-                let body;
-                switch (el.objectType) {
-                    case 'image':
-                        body = createCircle(el, width, height);
-                        break;
-                    case 'text':
-                    default:
-                        body = createPill(el, width, height);
-                }
-
+                let body = createRectangle(el, width, height);
                 body.plugin.wrap = {
                     min: { x: 0, y: 0 },
                     max: { x: width, y: height },
@@ -350,8 +300,7 @@ function SkillAttractor({ elementRefs, children }) {
                         width: offsetWidth,
                         height: offsetHeight,
                         left: offsetLeft,
-                        top: offsetTop,
-                        objectType: element.nodeName === "IMG" ? "image" : "text",
+                        top: offsetTop,                        
                     };
                 })
                 .filter(Boolean);
