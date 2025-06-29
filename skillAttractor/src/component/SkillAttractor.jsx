@@ -9,7 +9,7 @@ Matter.use(MatterWrap);
 function SkillAttractor({ elementRefs, children }) {
     const containerRef = useRef(null);
 
-    const physicsOptions = {
+    const BODY_OPTIONS = {
         mass: 0.2,
         restitution: 1,
         density: 0.01,
@@ -18,18 +18,36 @@ function SkillAttractor({ elementRefs, children }) {
         render: { visible: false },
     };
 
-    function createCircle(ele, canvasWidth, canvasHeight) {
+    const WALL_OPTIONS = {
+        isStatic: true,
+        label: "wall",
+        restitution: 1, // high bounciness
+        friction: 0,
+        render: {
+            visible: false,
+        },
+    };
+
+    const WALL_THICKNESS = 200;
+    const WALL_PADDING = 10;
+    const ATTRACTOR_STRENGTH = 1e-6;
+    const ATTRACTOR_RADIUS = 30;
+    const FORCE_SCALE = 0.12;
+
+    const randomPosition = (margin, max) => Matter.Common.random(margin, max - margin);
+
+    function createCircle(ele, width, height) {
         const radius = Math.max(ele.width, ele.height) / 2;
         const margin = radius + 20;
 
-        const x = Matter.Common.random(margin, canvasWidth - margin);
-        const y = Matter.Common.random(margin, canvasHeight - margin);
+        const x = randomPosition(margin, width);
+        const y = randomPosition(margin, height);
 
         const body = Matter.Bodies.circle(
             x,
             y,
             radius,
-            { ...physicsOptions, name: "image" }
+            { ...BODY_OPTIONS, name: "image" }
         );
 
         Matter.Body.setVelocity(body, {
@@ -40,41 +58,41 @@ function SkillAttractor({ elementRefs, children }) {
         return body
     }
 
-    const createPill = (element, width, height) => {
-        var pillWidth = element.width;
-        var pillHeight = element.height;
+    const createPill = (el, width, height) => {
+        var pillWidth = el.width;
+        var pillHeight = el.height;
         var pillRadius = pillHeight / 2;
 
         const margin = pillWidth + 30; // safe margin from edges
 
-        const pillPosX = Matter.Common.random(margin, width - margin);
-        const pillPosY = Matter.Common.random(margin, height - margin);
+        const x = randomPosition(margin, width);
+        const y = randomPosition(margin, height);
 
         var leftCircle = Matter.Bodies.circle(
-            pillPosX - pillWidth / 2 + pillRadius,
-            pillPosY,
+            x - pillWidth / 2 + pillRadius,
+            y,
             pillRadius,
-            physicsOptions
+            BODY_OPTIONS
         );
 
         var rightCircle = Matter.Bodies.circle(
-            pillPosX + pillWidth / 2 - pillRadius,
-            pillPosY,
+            x + pillWidth / 2 - pillRadius,
+            y,
             pillRadius,
-            physicsOptions
+            BODY_OPTIONS
         );
 
         var rect = Matter.Bodies.rectangle(
-            pillPosX,
-            pillPosY,
+            x,
+            y,
             pillWidth - pillHeight,
             pillHeight,
-            physicsOptions
+            BODY_OPTIONS
         );
 
         const pill = Matter.Body.create({
             parts: [leftCircle, rightCircle, rect],
-            ...physicsOptions,
+            ...BODY_OPTIONS,
             name: "text",
         });
 
@@ -86,56 +104,65 @@ function SkillAttractor({ elementRefs, children }) {
         return pill;
     };
 
-    function createBoundaries(width, height) {
-        const wallThickness = 200;
-        const wallPadding = 10;
-
-        const options = {
+    const createAttractiveBody = (width, height) => {
+        return Matter.Bodies.circle(randomPosition(ATTRACTOR_RADIUS, width / 2), randomPosition(ATTRACTOR_RADIUS, height / 2), ATTRACTOR_RADIUS, {
             isStatic: true,
-            label: "wall",
-            restitution: 1, // high bounciness
-            friction: 0,
             render: {
-                visible: false,
+                fillStyle: `red`,
+                strokeStyle: `#fff`,
+                lineWidth: 0,
+                resolution: 1
             },
-        };
+            plugin: {
+                attractors: [
+                    (bodyA, bodyB) => {
+                        return {
+                            x: (bodyA.position.x - bodyB.position.x) * ATTRACTOR_STRENGTH,
+                            y: (bodyA.position.y - bodyB.position.y) * ATTRACTOR_STRENGTH,
+                        };
+                    },
+                ],
+            },
+        });
+    };
+
+    function createBoundaries(width, height) {
 
         return [
             Matter.Bodies.rectangle(
                 width / 2,
-                height + wallThickness / 2 - wallPadding,
+                height + WALL_THICKNESS / 2 - WALL_PADDING,
                 width,
-                wallThickness,
-                options
+                WALL_THICKNESS,
+                WALL_OPTIONS
             ), //bottom
 
             Matter.Bodies.rectangle(
-                -wallThickness / 2 + wallPadding,
+                -WALL_THICKNESS / 2 + WALL_PADDING,
                 height / 2,
-                wallThickness,
+                WALL_THICKNESS,
                 height,
-                options
+                WALL_OPTIONS
             ), // Left
             Matter.Bodies.rectangle(
-                width + wallThickness / 2 - wallPadding,
+                width + WALL_THICKNESS / 2 - WALL_PADDING,
                 height / 2,
-                wallThickness,
+                WALL_THICKNESS,
                 height,
-                options
+                WALL_OPTIONS
             ), // Right
             Matter.Bodies.rectangle(
                 width / 2,
-                -wallThickness / 2 + wallPadding,
+                -WALL_THICKNESS / 2 + WALL_PADDING,
                 width,
-                wallThickness,
-                options
+                WALL_THICKNESS,
+                WALL_OPTIONS
             ), // Top
         ];
     }
 
     const createMouseConstraint = (engine, render) => {
         const mouse = Matter.Mouse.create(render.canvas);
-        mouse.element = containerRef.current
         const constraint = Matter.MouseConstraint.create(engine, {
             mouse,
             constraint: {
@@ -155,6 +182,51 @@ function SkillAttractor({ elementRefs, children }) {
         };
     };
 
+    const addTouchListeners = (mouseConstraint) => {
+
+        const mouse = mouseConstraint.mouse;
+        const element = mouse.element;
+
+        // Remove default touch and wheel listeners
+        element.removeEventListener("wheel", mouse.mousewheel);
+
+        element.removeEventListener('touchstart', mouse.mousedown);
+        element.removeEventListener('touchmove', mouse.mousemove);
+        element.removeEventListener('touchend', mouse.mouseup);
+
+        // Define the custom handlers
+        const customTouchStart = (e) => {
+            if (mouseConstraint.body) {
+                e.preventDefault();
+                mouse.mousedown(e);
+            }
+        };
+
+        const customTouchMove = (e) => {
+            if (mouseConstraint.body) {
+                e.preventDefault();
+                mouse.mousemove(e);
+            }
+        };
+
+        const customTouchEnd = (e) => {
+            if (mouseConstraint.body) {
+                e.preventDefault();
+                mouse.mouseup(e);
+            }
+        };
+
+        element.addEventListener('touchstart', customTouchStart, { passive: false });
+        element.addEventListener('touchmove', customTouchMove, { passive: false });
+        element.addEventListener('touchend', customTouchEnd, { passive: false });
+
+        return () => {
+            element.removeEventListener('touchstart', customTouchStart);
+            element.removeEventListener('touchmove', customTouchMove);
+            element.removeEventListener('touchend', customTouchEnd);
+        };
+    };
+
     useLayoutEffect(() => {
         const canvasContainer = containerRef.current;
         if (!canvasContainer) return;
@@ -162,7 +234,7 @@ function SkillAttractor({ elementRefs, children }) {
         const isReady = elementRefs.current.every((ref) => ref?.current);
         if (!isReady) return;
 
-        const measuredSizes = elementRefs.current
+        let measuredSizes = elementRefs.current
             .map((ref, i) => {
                 const element = ref.current;
                 const { offsetWidth, offsetHeight, offsetLeft, offsetTop } = element;
@@ -184,8 +256,6 @@ function SkillAttractor({ elementRefs, children }) {
         var engine = Matter.Engine.create();
         const world = engine.world;
 
-        engine.gravity.y = 0;
-        engine.gravity.x = 0;
         engine.gravity.scale = 0;
 
         const render = Matter.Render.create({
@@ -198,49 +268,30 @@ function SkillAttractor({ elementRefs, children }) {
             },
         });
 
-        // render.canvas.style.pointerEvents = "none";
+        render.canvas.style.pointerEvents = "auto";
 
         const runner = Matter.Runner.create();
         Matter.Render.run(render);
         Matter.Runner.run(runner, engine);
 
-        const createAttractiveBody = (width, height) => {
-            const radius = 30
-            const strength = 1e-6;
-
-            return Matter.Bodies.circle(Matter.Common.random(radius, width / 2), Matter.Common.random(radius, height / 2), radius, {
-                isStatic: true,
-                render: {
-                    fillStyle: `#000`,
-                    strokeStyle: `#000`,
-                    lineWidth: 0,
-                },
-                plugin: {
-                    attractors: [
-                        (bodyA, bodyB) => {
-                            return {
-                                x: (bodyA.position.x - bodyB.position.x) * strength,
-                                y: (bodyA.position.y - bodyB.position.y) * strength,
-                            };
-                        },
-                    ],
-                },
-            });
-        };
-
         const createBodies = () => {
             const { width, height } = getCanvasSize();
-
-            console.log(width)
             return measuredSizes.map((el) => {
-                const body =
-                    el.objectType === "image"
-                        ? createCircle(el, width, height)
-                        : createPill(el, width, height);
+                let body;
+                switch (el.objectType) {
+                    case 'image':
+                        body = createCircle(el, width, height);
+                        break;
+                    case 'text':
+                    default:
+                        body = createPill(el, width, height);
+                }
+
                 body.plugin.wrap = {
                     min: { x: 0, y: 0 },
                     max: { x: width, y: height },
                 };
+
                 return body;
             });
         };
@@ -250,14 +301,14 @@ function SkillAttractor({ elementRefs, children }) {
         let attractiveBody = createAttractiveBody(w, h)
         Matter.Composite.add(world, attractiveBody);
 
-        let bodiesStack = createBodies();
+        let bodiesStack = createBodies(w, h);
         Matter.Composite.add(world, bodiesStack);
 
         Matter.Composite.add(world, createBoundaries(w, h));
 
         let mouseConstraint = createMouseConstraint(engine, render);
         Matter.Composite.add(world, mouseConstraint);
-
+        const removeTouchListeners = addTouchListeners(mouseConstraint);
 
         let ticking = false;
         const updatePositions = () => {
@@ -280,19 +331,33 @@ function SkillAttractor({ elementRefs, children }) {
             const dx = mouseConstraint.mouse.position.x - attractiveBody.position.x;
             const dy = mouseConstraint.mouse.position.y - attractiveBody.position.y;
 
-            const forceScale = 0.12;
             Matter.Body.translate(attractiveBody, {
-                x: dx * forceScale,
-                y: dy * forceScale,
+                x: dx * FORCE_SCALE,
+                y: dy * FORCE_SCALE,
             });
+
             updatePositions()
         };
 
         const resizeCanvas = () => {
             const { width, height } = getCanvasSize();
 
+            measuredSizes = elementRefs.current
+                .map((ref, i) => {
+                    const element = ref.current;
+                    const { offsetWidth, offsetHeight, offsetLeft, offsetTop } = element;
+                    return {
+                        width: offsetWidth,
+                        height: offsetHeight,
+                        left: offsetLeft,
+                        top: offsetTop,
+                        objectType: element.nodeName === "IMG" ? "image" : "text",
+                    };
+                })
+                .filter(Boolean);
+
+            removeCanvasListeners()
             // Clear the existing bodies
-            Matter.Runner.stop(runner);
             Matter.Composite.clear(world, false);
 
             render.canvas.width = width;
@@ -303,24 +368,27 @@ function SkillAttractor({ elementRefs, children }) {
             attractiveBody = createAttractiveBody(width, height)
             Matter.Composite.add(world, attractiveBody);
 
-            bodiesStack = createBodies();
+            bodiesStack = createBodies(width, height);
             Matter.Composite.add(world, bodiesStack);
 
             Matter.Composite.add(world, createBoundaries(width, height));
 
-            if (mouseConstraint) Composite.remove(world, mouseConstraint);
+            if (mouseConstraint) {
+                Matter.Composite.remove(world, mouseConstraint);
+                removeTouchListeners();
+            }
             mouseConstraint = createMouseConstraint(engine, render);
             Matter.Composite.add(world, mouseConstraint);
+            addTouchListeners(mouseConstraint);
 
-            Matter.Runner.run(runner, engine);
+            addCanvasListeners()
         };
+
 
         const debouncedResize = debounce(resizeCanvas, 300);
         window.addEventListener("resize", debouncedResize);
 
-
         let isRunning = true;
-
         function pauseEngine() {
             if (isRunning) {
                 Matter.Runner.stop(runner);
@@ -337,13 +405,21 @@ function SkillAttractor({ elementRefs, children }) {
 
         Matter.Events.on(engine, "afterUpdate", afterUpdateHandler);
 
-        containerRef.current.addEventListener("mouseleave", pauseEngine);
-        containerRef.current.addEventListener("mouseenter", resumeEngine);
+        const addCanvasListeners = () => {
+            render.canvas.addEventListener("mouseleave", pauseEngine);
+            render.canvas.addEventListener("mouseenter", resumeEngine);
+        };
+
+        const removeCanvasListeners = () => {
+            render.canvas.removeEventListener("mouseleave", pauseEngine);
+            render.canvas.removeEventListener("mouseenter", resumeEngine);
+        };
+
+        addCanvasListeners()
 
         return () => {
             window.removeEventListener("resize", debouncedResize);
-            containerRef.current.removeEventListener("mouseleave", pauseEngine);
-            containerRef.current.removeEventListener("mouseenter", resumeEngine);
+            removeCanvasListeners()
             Matter.Events.off(engine, "afterUpdate", afterUpdateHandler);
             Matter.Render.stop(render);
             Matter.Runner.stop(runner);
@@ -359,9 +435,9 @@ function SkillAttractor({ elementRefs, children }) {
     }, [elementRefs]);
 
     return (
-        <div className="w-full h-full relative select-none">
+        <div className="w-full h-full relative">
             <div
-                className="absolute inset-0"
+                className="absolute inset-0 pointer-events-none"
                 ref={containerRef}
             />
 

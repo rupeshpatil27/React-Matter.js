@@ -24,6 +24,7 @@ function App() {
     { text: 'RESTful APIs', image: null },
     { text: 'AJAX', image: null },
     { text: 'API Integration', image: null },
+    { text: 'API Integration', image: null },
   ];
 
   const elementRefs = useRef(SkillsData.map(() => React.createRef()));
@@ -35,7 +36,7 @@ function App() {
           Particles Attractors
         </h1>
      
-      <div className="absolute inset-0">
+      <div className="w-full h-full relative">
 
 
         <SkillAttractor elementRefs={elementRefs}>
