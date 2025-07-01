@@ -317,7 +317,6 @@ function ParticleBounce({ elementRefs, children }) {
 
             Matter.Render.stop(render);
             Matter.Runner.stop(runner);
-            Matter.Composite.clear(world);
             Matter.Engine.clear(engine);
             Matter.Composite.clear(world);
             if (render.canvas.parentNode) {

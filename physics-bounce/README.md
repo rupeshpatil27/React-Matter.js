@@ -1,12 +1,159 @@
-# React + Vite
+# 🎈 ParticleBounce — React + Matter.js Interactive Physics Component
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A interactive **React + Matter.js** component that brings physics-based bouncing effects to any DOM element. It allows DOM elements (e.g., images or text) to bounce, collide, and respond to user interaction like dragging, giving a dynamic and playful experience.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## ✨ Features
 
-## Expanding the ESLint configuration
+- ⚛️ Built with React + Matter.js
+- 📦 Reusable component – drop in any set of elements
+- 🧲 Realistic physics (gravity, bounce, drag)
+- 🖱️ Interactive: supports mouse and touch dragging
+- 🎨 Fully customizable styles and assets
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+---
+
+## 🚀 Demo
+
+![Particle Bounce Preview](./public/preview/preview1.gif)
+
+---
+
+## 📦 Installation
+
+```bash
+
+npm install matter-js
+# or
+yarn add matter-js
+
+```
+---
+
+Then copy the `ParticleBounce.jsx` component into your project.
+
+## 🔧 Usage
+
+### 1. Prepare your data
+
+```bash
+
+const Data = [ /* your data here */ ];
+
+```
+
+### 2. Create Refs for Elements
+
+```bash
+
+const elementRefs = useRef(Data.map(() => React.createRef()));
+
+```
+
+### 3. Use the Component
+
+🧷 `draggable={false}` is **required** for images.
+
+You can **fully control how your particles look** by customizing the rendering logic. Here’s the default template:
+
+```bash
+
+<ParticleBounce elementRefs={elementRefs}>
+  {Data.map((item, i) =>
+    item.image ? (
+      <img
+        ref={elementRefs.current[i]}
+        key={i}
+        src={item.image}
+        className="your-class"
+        draggable={false} // 🔥 Required!
+      />
+    ) : (
+      <div
+        ref={elementRefs.current[i]}
+        key={i}
+        className="your-class"
+      >
+        {item.text}
+      </div>
+    )
+  )}
+</ParticleBounce>
+
+```
+
+## Customize:
+
+- 💅 `your-class` — Add your own Tailwind or CSS styles
+
+- ℹ️ All elements must be **absolutely positioned**.
+
+- ✅ Required CSS Styles
+
+```bash
+
+.your-class {
+  position: absolute;             /* ℹ️ Required for positioning */
+  pointer-events: auto;           /* ✅ Enables drag interactions */
+  will-change: transform;         /* ✅ Optimizes GPU rendering */
+}
+
+```
+
+Tailwind users can use:
+
+```bash
+
+className="absolute pointer-events-auto will-change-transform"
+
+```
+
+
+---
+
+### 🧪 Example Setup
+
+```bash
+
+import React, { useRef } from 'react';
+import ParticleBounce from './ParticleBounce';
+
+const Data = [
+  { text: null, image: '/github.svg' },
+  { text: 'React', image: null },
+  // ...
+];
+
+const elementRefs = useRef(Data.map(() => React.createRef()));
+
+export default function App() {
+  return (
+    <div className="relative w-full h-screen">
+      <ParticleBounce elementRefs={elementRefs}>
+        {Data.map((item, i) =>
+          item.image ? (
+            <img
+              ref={elementRefs.current[i]}
+              src={item.image}
+              className="absolute size-12 pointer-events-auto cursor-grab will-change-transform"
+              key={i}
+              draggable={false}
+            />
+          ) : (
+            <div
+              ref={elementRefs.current[i]}
+              className="absolute text-white px-4 py-2 pointer-events-auto cursor-grab will-change-transform"
+              key={i}
+            >
+              {item.text}
+            </div>
+          )
+        )}
+      </ParticleBounce>
+    </div>
+  );
+}
+
+
+```
