@@ -6,7 +6,7 @@ import MatterWrap from "matter-wrap";
 Matter.use(MatterAttractors);
 Matter.use(MatterWrap);
 
-function SkillAttractor({ elementRefs, children }) {
+function ParticleAttractor({ elementRefs, children }) {
     const containerRef = useRef(null);
 
     const BODY_OPTIONS = {
@@ -67,11 +67,13 @@ function SkillAttractor({ elementRefs, children }) {
     const createAttractiveBody = (width, height) => {
         return Matter.Bodies.circle(randomPosition(ATTRACTOR_RADIUS, width / 2), randomPosition(ATTRACTOR_RADIUS, height / 2), ATTRACTOR_RADIUS, {
             isStatic: true,
+            name: "AttractiveBody",
             render: {
                 fillStyle: `red`,
                 strokeStyle: `#fff`,
                 lineWidth: 0,
-                resolution: 1
+                resolution: 1,
+                visible:false,
             },
             plugin: {
                 attractors: [
@@ -121,69 +123,11 @@ function SkillAttractor({ elementRefs, children }) {
         ];
     }
 
-    const createMouseConstraint = (engine, render) => {
-        const mouse = Matter.Mouse.create(render.canvas);
-        const constraint = Matter.MouseConstraint.create(engine, {
-            mouse,
-            constraint: {
-                stiffness: 0.2,
-                render: { visible: false },
-            },
-        });
-        render.mouse = mouse;
-        return constraint;
-    };
-
     const debounce = (func, wait) => {
         let timeout;
         return (...args) => {
             clearTimeout(timeout);
             timeout = setTimeout(() => func(...args), wait);
-        };
-    };
-
-    const addTouchListeners = (mouseConstraint) => {
-
-        const mouse = mouseConstraint.mouse;
-        const element = mouse.element;
-
-        // Remove default touch and wheel listeners
-        element.removeEventListener("wheel", mouse.mousewheel);
-
-        element.removeEventListener('touchstart', mouse.mousedown);
-        element.removeEventListener('touchmove', mouse.mousemove);
-        element.removeEventListener('touchend', mouse.mouseup);
-
-        // Define the custom handlers
-        const customTouchStart = (e) => {
-            if (mouseConstraint.body) {
-                e.preventDefault();
-                mouse.mousedown(e);
-            }
-        };
-
-        const customTouchMove = (e) => {
-            if (mouseConstraint.body) {
-                e.preventDefault();
-                mouse.mousemove(e);
-            }
-        };
-
-        const customTouchEnd = (e) => {
-            if (mouseConstraint.body) {
-                e.preventDefault();
-                mouse.mouseup(e);
-            }
-        };
-
-        element.addEventListener('touchstart', customTouchStart, { passive: false });
-        element.addEventListener('touchmove', customTouchMove, { passive: false });
-        element.addEventListener('touchend', customTouchEnd, { passive: false });
-
-        return () => {
-            element.removeEventListener('touchstart', customTouchStart);
-            element.removeEventListener('touchmove', customTouchMove);
-            element.removeEventListener('touchend', customTouchEnd);
         };
     };
 
@@ -193,19 +137,6 @@ function SkillAttractor({ elementRefs, children }) {
 
         const isReady = elementRefs.current.every((ref) => ref?.current);
         if (!isReady) return;
-
-        let measuredSizes = elementRefs.current
-            .map((ref, i) => {
-                const element = ref.current;
-                const { offsetWidth, offsetHeight, offsetLeft, offsetTop } = element;
-                return {
-                    width: offsetWidth,
-                    height: offsetHeight,
-                    left: offsetLeft,
-                    top: offsetTop,                    
-                };
-            })
-            .filter(Boolean);
 
         const getCanvasSize = () => ({
             width: canvasContainer?.offsetWidth,
@@ -227,14 +158,28 @@ function SkillAttractor({ elementRefs, children }) {
             },
         });
 
-        render.canvas.style.pointerEvents = "auto";
+        render.canvas.style.pointerEvents = "none";
 
         const runner = Matter.Runner.create();
         Matter.Render.run(render);
         Matter.Runner.run(runner, engine);
 
-        const createBodies = () => {
-            const { width, height } = getCanvasSize();
+        let measuredSizes = elementRefs.current
+            .map((ref) => {
+                const el = ref.current;
+                if (!el) return null;
+                const { offsetWidth, offsetHeight, offsetLeft, offsetTop } = el;
+                return {
+                    el,
+                    width: offsetWidth,
+                    height: offsetHeight,
+                    left: offsetLeft,
+                    top: offsetTop,
+                };
+            })
+            .filter(Boolean);
+
+        const createBodies = (width, height) => {
             return measuredSizes.map((el) => {
                 let body = createRectangle(el, width, height);
                 body.plugin.wrap = {
@@ -256,20 +201,28 @@ function SkillAttractor({ elementRefs, children }) {
 
         Matter.Composite.add(world, createBoundaries(w, h));
 
-        let mouseConstraint = createMouseConstraint(engine, render);
+        // Mouse & Touch Handling
+        const mouse = Matter.Mouse.create(canvasContainer);
+        const mouseConstraint = Matter.MouseConstraint.create(engine, {
+            mouse,
+            constraint: {
+                stiffness: 0.2,
+                render: { visible: false },
+            },
+        });
         Matter.Composite.add(world, mouseConstraint);
-        const removeTouchListeners = addTouchListeners(mouseConstraint);
+        render.mouse = mouse;
 
         let ticking = false;
         const updatePositions = () => {
             if (!ticking) {
                 window.requestAnimationFrame(() => {
                     bodiesStack.forEach((body, i) => {
-                        const el = elementRefs.current[i]?.current;
+                        const { el } = measuredSizes[i];
                         if (!el) return;
-                        el.style.left = `${body.position.x - el.offsetWidth / 2}px`;
-                        el.style.top = `${body.position.y - el.offsetHeight / 2}px`;
-                        el.style.transform = `rotate(${body.angle}rad)`;
+                        const x = body.position.x - el.offsetWidth / 2;
+                        const y = body.position.y - el.offsetHeight / 2;
+                        el.style.transform = `translate(${x}px, ${y}px) rotate(${body.angle}rad)`;
                     });
                     ticking = false;
                 });
@@ -289,53 +242,7 @@ function SkillAttractor({ elementRefs, children }) {
             updatePositions()
         };
 
-        const resizeCanvas = () => {
-            const { width, height } = getCanvasSize();
-
-            measuredSizes = elementRefs.current
-                .map((ref, i) => {
-                    const element = ref.current;
-                    const { offsetWidth, offsetHeight, offsetLeft, offsetTop } = element;
-                    return {
-                        width: offsetWidth,
-                        height: offsetHeight,
-                        left: offsetLeft,
-                        top: offsetTop,                        
-                    };
-                })
-                .filter(Boolean);
-
-            removeCanvasListeners()
-            // Clear the existing bodies
-            Matter.Composite.clear(world, false);
-
-            render.canvas.width = width;
-            render.canvas.height = height;
-            render.options.width = width;
-            render.options.height = height;
-
-            attractiveBody = createAttractiveBody(width, height)
-            Matter.Composite.add(world, attractiveBody);
-
-            bodiesStack = createBodies(width, height);
-            Matter.Composite.add(world, bodiesStack);
-
-            Matter.Composite.add(world, createBoundaries(width, height));
-
-            if (mouseConstraint) {
-                Matter.Composite.remove(world, mouseConstraint);
-                removeTouchListeners();
-            }
-            mouseConstraint = createMouseConstraint(engine, render);
-            Matter.Composite.add(world, mouseConstraint);
-            addTouchListeners(mouseConstraint);
-
-            addCanvasListeners()
-        };
-
-
-        const debouncedResize = debounce(resizeCanvas, 300);
-        window.addEventListener("resize", debouncedResize);
+        Matter.Events.on(engine, "afterUpdate", afterUpdateHandler);
 
         let isRunning = true;
         function pauseEngine() {
@@ -352,24 +259,121 @@ function SkillAttractor({ elementRefs, children }) {
             }
         }
 
-        Matter.Events.on(engine, "afterUpdate", afterUpdateHandler);
+        canvasContainer.addEventListener("mouseleave", pauseEngine);
+        canvasContainer.addEventListener("mouseenter", resumeEngine);
 
-        const addCanvasListeners = () => {
-            render.canvas.addEventListener("mouseleave", pauseEngine);
-            render.canvas.addEventListener("mouseenter", resumeEngine);
+        // Custom touch/mouse interaction logic
+        const getPointerPosition = (e) => {
+            const rect = canvasContainer.getBoundingClientRect();
+            if (e.touches) {
+                const touch = e.touches[0] || e.changedTouches[0];
+                return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+            }
+            return { x: e.clientX - rect.left, y: e.clientY - rect.top };
         };
 
-        const removeCanvasListeners = () => {
-            render.canvas.removeEventListener("mouseleave", pauseEngine);
-            render.canvas.removeEventListener("mouseenter", resumeEngine);
+        const isTouchingBody = (pos) => {
+            const allBodies = Matter.Composite.allBodies(world);
+            const touchedBodies = Matter.Query.point(allBodies, pos);
+            return touchedBodies.some(body => body.name === "AttractiveBody");
         };
 
-        addCanvasListeners()
+        let isDragging = false;
+
+        const handleStart = (e) => {
+            const pos = getPointerPosition(e);
+            if (isTouchingBody(pos)) {
+                e.preventDefault();
+                mouseConstraint.mouse.mousedown(e);
+                isDragging = true;
+            }
+        };
+
+        const handleMove = (e) => {
+            if (isDragging) {
+                e.preventDefault();
+                mouseConstraint.mouse.mousemove(e);
+            }
+        };
+
+        const handleEnd = (e) => {
+            if (isDragging) {
+                e.preventDefault();
+                mouseConstraint.mouse.mouseup(e);
+                isDragging = false;
+            }
+        };
+
+        // Attach custom events
+        canvasContainer.addEventListener("mousedown", handleStart);
+        canvasContainer.addEventListener("mousemove", handleMove);
+        canvasContainer.addEventListener("mouseup", handleEnd);
+
+        canvasContainer.addEventListener("touchstart", handleStart, { passive: false });
+        canvasContainer.addEventListener("touchmove", handleMove, { passive: false });
+        canvasContainer.addEventListener("touchend", handleEnd, { passive: false });
+
+        // Remove default Matter mouse element listeners
+        const mcEl = mouseConstraint.mouse.element;
+        mcEl.removeEventListener("wheel", mouseConstraint.mouse.mousewheel);
+        mcEl.removeEventListener("touchstart", mouseConstraint.mouse.mousedown);
+        mcEl.removeEventListener("touchmove", mouseConstraint.mouse.mousemove);
+        mcEl.removeEventListener("touchend", mouseConstraint.mouse.mouseup);
+
+        const resizeCanvas = () => {
+            const { width, height } = getCanvasSize();
+
+            measuredSizes = elementRefs.current
+                .map((ref) => {
+                    const el = ref.current;
+                    if (!el) return null;
+                    const { offsetWidth, offsetHeight, offsetLeft, offsetTop } = el;
+                    return {
+                        el,
+                        width: offsetWidth,
+                        height: offsetHeight,
+                        left: offsetLeft,
+                        top: offsetTop,
+                    };
+                })
+                .filter(Boolean);
+
+            // Clear the existing bodies
+            Matter.Composite.clear(world, false);
+
+            render.canvas.width = width;
+            render.canvas.height = height;
+            render.options.width = width;
+            render.options.height = height;
+
+            attractiveBody = createAttractiveBody(width, height)
+            Matter.Composite.add(world, attractiveBody);
+
+            bodiesStack = createBodies(width, height);
+            Matter.Composite.add(world, bodiesStack);
+
+            Matter.Composite.add(world, createBoundaries(width, height));
+
+            Matter.Composite.add(world, mouseConstraint);
+        };
+
+        const debouncedResize = debounce(resizeCanvas, 300);
+        window.addEventListener("resize", debouncedResize);
 
         return () => {
             window.removeEventListener("resize", debouncedResize);
-            removeCanvasListeners()
+
+            canvasContainer.removeEventListener("mousedown", handleStart);
+            canvasContainer.removeEventListener("mousemove", handleMove);
+            canvasContainer.removeEventListener("mouseup", handleEnd);
+            canvasContainer.removeEventListener("touchstart", handleStart);
+            canvasContainer.removeEventListener("touchmove", handleMove);
+            canvasContainer.removeEventListener("touchend", handleEnd);
+            canvasContainer.removeEventListener("mouseleave", pauseEngine);
+            canvasContainer.removeEventListener("mouseenter", resumeEngine);
+
             Matter.Events.off(engine, "afterUpdate", afterUpdateHandler);
+
             Matter.Render.stop(render);
             Matter.Runner.stop(runner);
             Matter.Composite.clear(world);
@@ -384,12 +388,10 @@ function SkillAttractor({ elementRefs, children }) {
     }, [elementRefs]);
 
     return (
-        <div className="w-full h-full relative">
-            <div
-                className="absolute inset-0 pointer-events-none"
-                ref={containerRef}
-            />
-
+        <div
+            className="w-full h-full relative pointer-events-auto overflow-hidden"
+            ref={containerRef}
+        >
             <div className="absolute inset-0 z-10 pointer-events-none">
                 {children}
             </div>
@@ -397,4 +399,4 @@ function SkillAttractor({ elementRefs, children }) {
     );
 }
 
-export default SkillAttractor
+export default ParticleAttractor

@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import SkillAttractor from "./component/SkillAttractor";
+import ParticleAttractor from "./component/ParticleAttractor";
 
 function App() {
 
@@ -37,27 +37,27 @@ function App() {
         </h1>
 
         <div className="w-full h-full relative">
-          <SkillAttractor elementRefs={elementRefs}>
+          <ParticleAttractor elementRefs={elementRefs}>
             {SkillsData.map((item, i) =>
 
               item.image && !item.text ? (
                 <img
                   ref={elementRefs.current[i]}
                   key={`img-${i}`}
-                  className={`absolute size-12 md:size-15 select-none ${item.color === '#fff' ? 'filter invert' : ''}`}
+                  className={`absolute size-12 md:size-15 select-none will-change-transform ${item.color === '#fff' ? 'filter invert' : ''}`}
                   src={item.image}
                 />
               ) : (
                 <div
                   ref={elementRefs.current[i]}
                   key={`text-${i}`}
-                  className="absolute px-4 py-1 text-[13px] whitespace-nowrap md:text-lg text-white-50 text-center rounded-4xl ring ring-gray-600 font-extralight bg-black-200 select-none"
+                  className="absolute px-4 py-1 text-[13px] whitespace-nowrap md:text-lg text-white-50 text-center rounded-4xl ring ring-gray-600 font-extralight bg-black-200 select-none will-change-transform"
                 >
                   {item.text}
                 </div>
               )
             )}
-          </SkillAttractor>
+          </ParticleAttractor>
         </div>
       </div>
     </>
